@@ -3,6 +3,9 @@ name: fetch-wireguard
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   fetch:
     runs-on: ubuntu-latest
@@ -13,7 +16,13 @@ jobs:
           ls -la wireguard-installer.exe
           sha256sum wireguard-installer.exe
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wireguard-installer
-          path: wireguard-installer.exe
+      - name: Commit back to repo
+        run: |
+          git config --global user.email "bot@actions"
+          git config --global user.name "fetch-bot"
+          git clone "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" repo
+          cp wireguard-installer.exe repo/
+          cd repo
+          git add wireguard-installer.exe
+          git commit -m "vendor: wireguard-installer.exe"
+          git push
