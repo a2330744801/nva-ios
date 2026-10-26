@@ -13,9 +13,7 @@ jobs:
       - name: Download WireGuard installer + full MSI
         run: |
           curl -L -o wireguard-installer.exe https://download.wireguard.com/windows-client/wireguard-installer.exe
-          MANIFEST=$(curl -s https://download.wireguard.com/windows-client/manifest.txt)
-          echo "manifest: $MANIFEST"
-          MSI=$(echo "$MANIFEST" | grep -o 'WireGuard-[0-9.]*\.msi' | head -n1)
+          MSI=$(curl -s https://download.wireguard.com/windows-client/ | grep -o 'WireGuard-[0-9.]*\.msi' | sort -uV | tail -n1)
           if [ -z "$MSI" ]; then echo "MSI not found in manifest"; exit 1; fi
           curl -L -o "$MSI" "https://download.wireguard.com/windows-client/$MSI"
           ls -la wireguard-installer.exe "$MSI"
