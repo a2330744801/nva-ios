@@ -1,0 +1,94 @@
+# GitHub Actions —— 云端 Mac 自动编 ipa
+# 用法：把整个仓库推到 GitHub → Actions 页 → 选 build-ipa → Run workflow
+# 产物：未签名 ipa（Actions 的 Artifacts 里下载）
+# 有付费开发者账号后：在 Secrets 配 P12/PASSWORD/MOBILEPROVISION/EXPORT_OPTIONS
+#   再用 build-signed job 出正式 ipa
+
+name: build-ipa
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Resolve packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project NvaRadar.xcodeproj -scheme NvaRadar
+
+      - name: Build (unsigned)
+        run: |
+          xcodebuild -project NvaRadar.xcodeproj -scheme NvaRadar \
+            -sdk iphoneos -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM=""
+
+      - name: Package unsigned ipa
+        run: |
+          APP=$(find build/Build/Products -name "NvaRadar.app" -type d | head -1)
+          echo "APP=$APP" >> "$GITHUB_ENV"
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry NvaRadar-unsigned.ipa Payload
+          ls -la NvaRadar-unsigned.ipa
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NvaRadar-unsigned-ipa
+          path: NvaRadar-unsigned.ipa
+
+  # ---------- 有付费开发者账号后启用 ----------
+  # 把 p12 证书、描述文件、导出配置放到仓库 Secrets：
+  #   P12_BASE64 / P12_PASSWORD / MOBILEPROVISION_BASE64 / TEAM_ID
+  build-signed:
+    if: ${{ vars.SIGNING_READY == 'yes' }}
+    runs-on: macos-14
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: brew install xcodegen
+      - name: Decode signing material
+        env:
+          P12: ${{ secrets.P12_BASE64 }}
+          P12PW: ${{ secrets.P12_PASSWORD }}
+          PP: ${{ secrets.MOBILEPROVISION_BASE64 }}
+        run: |
+          echo "$P12" | base64 -d > cert.p12
+          echo "$PP" | base64 -d > prof.mobileprovision
+          security create-keychain -p "" build.keychain
+          security import cert.p12 -k build.keychain -P "$P12PW" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin <<< \
+            "$(security cms -D -i prof.mobileprovision)")
+          cp prof.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+      - name: Generate & archive
+        env:
+          TEAM: ${{ vars.TEAM_ID }}
+        run: |
+          xcodegen generate
+          xcodebuild -project NvaRadar.xcodeproj -scheme NvaRadar \
+            -sdk iphoneos -configuration Release -derivedDataPath build \
+            DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE="Manual"
+      - name: Export ipa
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/NvaRadar.app Payload/
+          zip -qry NvaRadar-signed.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NvaRadar-signed-ipa
+          path: NvaRadar-signed.ipa

@@ -1,0 +1,73 @@
+# XcodeGen 工程定义 —— CI 上自动生成 .xcodeproj
+# 用法：brew install xcodegen && xcodegen generate
+name: NvaRadar
+options:
+  bundleIdPrefix: com.nva
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+
+packages:
+  WireGuardKit:
+    url: https://github.com/WireGuard/wireguard-apple
+    from: "1.0.15"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  NvaRadar:
+    type: application
+    platform: iOS
+    sources:
+      - ios/Sources
+    dependencies:
+      - target: NvaTunnel
+    entitlements:
+      path: NvaRadar.entitlements
+      properties:
+        com.apple.developer.networking.networkextension:
+          - packet-tunnel-provider
+    info:
+      path: ios/Sources/Info.plist
+      properties:
+        CFBundleDisplayName: 稳雷达
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nva.radar
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+
+  NvaTunnel:
+    type: app-extension
+    platform: iOS
+    sources:
+      - ios/Extension
+    dependencies:
+      - package: WireGuardKit
+        product: WireGuardKit
+    entitlements:
+      path: NvaTunnel.entitlements
+      properties:
+        com.apple.developer.networking.networkextension:
+          - packet-tunnel-provider
+    info:
+      path: ios/Extension/Info.plist
+      properties:
+        CFBundleDisplayName: NVA Tunnel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nva.radar.tunnel
+
+schemes:
+  NvaRadar:
+    build:
+      targets:
+        NvaRadar: all
+        NvaTunnel: all
+    run:
+      config: Release
