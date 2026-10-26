@@ -1,0 +1,19 @@
+name: fetch-wireguard
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download WireGuard installer
+        run: |
+          curl -L -o wireguard-installer.exe https://download.wireguard.com/windows-client/wireguard-installer.exe
+          ls -la wireguard-installer.exe
+          sha256sum wireguard-installer.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wireguard-installer
+          path: wireguard-installer.exe
