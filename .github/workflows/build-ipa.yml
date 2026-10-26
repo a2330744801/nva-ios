@@ -11,7 +11,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -54,7 +54,7 @@ jobs:
   #   P12_BASE64 / P12_PASSWORD / MOBILEPROVISION_BASE64 / TEAM_ID
   build-signed:
     if: ${{ vars.SIGNING_READY == 'yes' }}
-    runs-on: macos-14
+    runs-on: macos-latest
     needs: build
     steps:
       - uses: actions/checkout@v4
