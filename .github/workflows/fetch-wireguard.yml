@@ -10,11 +10,16 @@ jobs:
   fetch:
     runs-on: ubuntu-latest
     steps:
-      - name: Download WireGuard installer
+      - name: Download WireGuard installer + full MSI
         run: |
           curl -L -o wireguard-installer.exe https://download.wireguard.com/windows-client/wireguard-installer.exe
-          ls -la wireguard-installer.exe
-          sha256sum wireguard-installer.exe
+          MANIFEST=$(curl -s https://download.wireguard.com/windows-client/manifest.txt)
+          echo "manifest: $MANIFEST"
+          MSI=$(echo "$MANIFEST" | grep -o 'WireGuard-[0-9.]*\.msi' | head -n1)
+          if [ -z "$MSI" ]; then echo "MSI not found in manifest"; exit 1; fi
+          curl -L -o "$MSI" "https://download.wireguard.com/windows-client/$MSI"
+          ls -la wireguard-installer.exe "$MSI"
+          sha256sum wireguard-installer.exe "$MSI"
 
       - name: Commit back to repo
         run: |
@@ -22,7 +27,9 @@ jobs:
           git config --global user.name "fetch-bot"
           git clone "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" repo
           cp wireguard-installer.exe repo/
+          MSI=$(ls WireGuard-*.msi | head -n1)
+          cp "$MSI" repo/
           cd repo
-          git add wireguard-installer.exe
-          git commit -m "vendor: wireguard-installer.exe"
+          git add wireguard-installer.exe "$MSI"
+          git commit -m "vendor: wireguard full MSI ($MSI)"
           git push
