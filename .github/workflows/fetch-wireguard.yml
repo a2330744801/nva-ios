@@ -13,11 +13,26 @@ jobs:
       - name: Download WireGuard installer + full MSI
         run: |
           curl -L -o wireguard-installer.exe https://download.wireguard.com/windows-client/wireguard-installer.exe
-          MSI=$(curl -s https://download.wireguard.com/windows-client/ | grep -o 'WireGuard-[0-9.]*\.msi' | sort -uV | tail -n1)
-          if [ -z "$MSI" ]; then echo "MSI not found in manifest"; exit 1; fi
-          curl -L -o "$MSI" "https://download.wireguard.com/windows-client/$MSI"
-          ls -la wireguard-installer.exe "$MSI"
-          sha256sum wireguard-installer.exe "$MSI"
+          python3 - <<'PY'
+          import urllib.request, re, os, subprocess, sys
+          base = "https://download.wireguard.com/windows-client/"
+          try:
+              html = urllib.request.urlopen(base, timeout=30).read().decode('utf-8', 'replace')
+          except Exception as e:
+              print("FETCH_FAIL", e); sys.exit(1)
+          print("PAGE_LEN", len(html))
+          print("PAGE_HEAD >>>")
+          print(html[:2500])
+          print("<<<")
+          names = sorted(set(re.findall(r'WireGuard-[0-9A-Za-z_.-]+\.msi', html)))
+          print("NAMES", names)
+          if not names:
+              print("NO_MSI_IN_PAGE"); sys.exit(1)
+          msi = names[-1]
+          print("PICK", base + msi)
+          subprocess.run(["curl", "-L", "-o", msi, base + msi], check=True)
+          print("DONE", msi, os.path.getsize(msi))
+          PY
 
       - name: Commit back to repo
         run: |
